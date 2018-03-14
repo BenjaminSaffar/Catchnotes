@@ -24,10 +24,10 @@ Par la diversité des fonctionnalités et leur difficulté, nous nous concentrer
 Feuille de route 
  
 Nous commencerons par la reconnaissance d’écriture mathématiques. Nous procéderons en plusieurs étapes : 
-Initiation à python et aux bibliothèques additionnelles (TensorFlow, Keras) 
-Premier réseau de neurones reconnaissant les chiffres 
-Un réseau pour les lettres 
-Un réseau pour les caractères mathématiques (ponctuation, opérateur, symboles, fonctions, fractions, matrices…) 
-Concevoir un algo de séparation d’objet 
-Lier le tout et enregistrer le résultat dans un logiciel de traitement de texte (probablement Latex). 
+-Initiation à python et aux bibliothèques additionnelles (TensorFlow, Keras) 
+-Premier réseau de neurones reconnaissant les chiffres 
+-Un réseau pour les lettres 
+-Un réseau pour les caractères mathématiques (ponctuation, opérateur, symboles, fonctions, fractions, matrices…) 
+-Concevoir un algo de séparation d’objet 
+-Lier le tout et enregistrer le résultat dans un logiciel de traitement de texte (probablement Latex). 
  
