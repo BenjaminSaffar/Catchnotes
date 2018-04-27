@@ -1,0 +1,98 @@
+import numpy as np
+from matplotlib import pyplot as PYP
+from PIL import Image
+
+if __name__ == '__main__':
+
+    img = Image.open("test.png")
+    image = np.asarray(img)
+    im = np.copy(image)
+    a = np.zeros(img.size)
+    l, L = img.size
+
+    for i in range(l):
+        for j in range(L):
+            px = img.getpixel((i, j))
+            px2 = np.asarray(px)
+            m = px2.sum() / px2.size
+
+            if m > 80:
+                m = 0
+            else:
+                m = 1
+            a[i][j] = m
+    b = a.sum(axis=0) / l
+    num = [0]
+    for o in range(b.size):
+        if b[o] != 0:
+            b[o] = 0
+        else:
+            b[o] = 1
+
+    for o in range(b.size - 1):
+        if b[o] != b[o + 1]:
+            num.append(o)
+
+    num = np.asarray(num)
+    final = []
+    p = 0
+    """while p < num.size-1:
+       final.append(num[p]+(num[p+1]-num[p])/2)
+       p += 2"""
+
+    for li in num:
+        for i in range(l):
+            im[int(li)][i] = (255, 0, 0)
+
+    image2 = Image.fromarray(im)
+    image2.save("t.png")
+
+    picture = Image.open("test2.png")
+    pict_array = np.asarray(picture)
+    pict_array_cpy = np.copy(pict_array)
+    w = np.zeros(picture.size)
+    l, L = picture.size
+
+    for i in range(l):
+        for j in range(L):
+            px = picture.getpixel((i, j))
+
+            px2 = np.asarray(px)
+            z = px2.sum() / px2.size
+            if z > 155:
+                z = 0
+            else:
+                z = 1
+            w[i][j] = z
+
+    b = w.sum(axis=1)/L
+    num2 = [0]
+    for o in range(b.size):
+        if b[o] != 0:
+            b[o] = 0
+        else:
+            b[o] = 1
+
+    c = 0
+    for o in range(b.size - 1):
+        if b[o] != b[o + 1]: #and c > 3:
+            num2.append(o)
+            c = 0
+        elif b[o] == 1:
+            c += 1
+
+    num2 = np.asarray(num2)
+    final = []
+    p = 0
+    """while p < num.size-1:
+       final.append(num[p]+(num[p+1]-num[p])/2)
+       p += 2"""
+
+    for li in num2:
+        for i in range(L):
+            pict_array_cpy[i][int(li)] = (255, 0, 0, 255)
+
+    image2 = Image.fromarray(pict_array_cpy)
+    image2.save("t2.png")
+    PYP.imshow(image2)
+    PYP.show()
