@@ -1,0 +1,226 @@
+import numpy as np
+import cv2
+import os
+
+
+def viderdossier(repertoire):
+    files = os.listdir(repertoire)
+    for file in files:
+        os.remove(repertoire + "/" + file)
+
+
+def normalisation(beg, end):
+    index1 = np.asarray(beg)
+    index2 = np.asarray(end)
+    i = 0
+    i2 = i + 1
+    ecarts = []
+    while i < index1.size and i < index2.size:
+        ecarts.append((index2[i] - index1[i]))
+        i += 2
+    ecartmoy = np.mean(np.asarray(ecarts))
+    i = 0
+    while i < index1.size and i < index2.size:
+        if (index2[i] - index1[i]) < np.sqrt(ecartmoy):
+            beg.remove(index1[i])
+            end.remove(index2[i])
+        i += 1
+    return
+
+
+def uniformisation(beg, end, size):
+    limitations = []
+    index1 = np.asarray(beg)
+    index2 = np.asarray(end)
+    limitations.append(int(index1[0] / 2))
+    for i in range(index1.size - 1):
+        limitations.append(int((index2[i] + index1[i + 1]) / 2))
+    limitations.append(int((size + index2[index2.size - 1]) / 2))
+    return limitations
+
+
+def binarize(array):
+    moy = np.mean(array)
+    for i in range(array.size):
+        if array[i] > moy:
+            array[i] = 0
+        else:
+            array[i] = 1
+
+
+def getIndexesOfLines(array):
+    binarize(array)
+
+    grad = np.gradient(array)
+    for g in range(1, grad.size):
+        if grad[g] == grad[g - 1]:
+            grad[g] = 0
+    indexbegin = []
+    indexend = []
+
+    for i in range(grad.size):
+        if grad[i] > 0:
+            indexbegin.append(i)
+        elif grad[i] < 0:
+            indexend.append(i)
+    return indexbegin, indexend
+
+
+def printlines(image, line):
+    for lb in line:
+        image[lb] = (0, 255, 0)
+    # cv2.imwrite("lignes.png", image)
+
+
+def findlines(img):
+    kernel = np.ones((29, 29), np.uint8)
+    NI = cv2.dilate(cv2.bitwise_not(img), kernel)
+
+    NI = cv2.bitwise_not(NI)
+
+    som = NI.sum(axis=1) / NI.shape[1]
+    lineB, lineE = getIndexesOfLines(som)
+
+    normalisation(lineB, lineE)
+    uni = uniformisation(lineB, lineE, NI.shape[0])
+    return uni
+
+
+def graylevel(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    return cv2.split(gray)[0]
+
+
+def seuillage(image):
+    _, image = cv2.threshold(image, 130, 255, cv2.THRESH_BINARY)
+    return image
+
+
+def evaluation(x1, x2, y1, y2):  # évalue si au moins 50% du pattern est contenu dans une ligne
+    t1 = t2 = 0
+    if x2 < y2:
+        t1 = x2
+    else:
+        t1 = y2
+    if x1 < y1:
+        t2 = y1
+    else:
+        t2 = x1
+
+    rate = (t1 - t2) / (x2 - x1)
+    return rate > 0.5
+
+
+def contouring(image):
+    img = image
+    """mise en niveaux de gris"""
+    newImg = graylevel(img)
+    """seuillage"""
+
+    newImg = seuillage(newImg)
+    lignes = findlines(newImg)
+
+    kernel = np.ones((int(img.shape[0] / 80), int(img.shape[1] / 40)), np.uint8)  #matrice de filtre
+    NI = cv2.dilate(cv2.bitwise_not(newImg), kernel)
+    _, contours, _ = cv2.findContours(NI, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    delimitation = []
+    for contour in reversed(contours):
+        [x, y, w, h] = cv2.boundingRect(contour)
+        if w > 10 and h > 10:
+            delimitation.append([x, y, w, h])
+    delimitation.sort(key=lambda rect: rect[1])
+    words = []
+    j = 0
+
+    val = False
+
+    for i in range(0, len(lignes) - 1):
+        line = []
+        while j < len(delimitation):
+            if evaluation(delimitation[j][1], delimitation[j][1] + delimitation[j][3], lignes[i], lignes[i + 1]):
+                line.append(delimitation[j])
+                val = True
+            j += 1
+        j = 0
+        if val:
+            line.sort(key=lambda rect: rect[0])
+            words.append(line)
+        val = False
+        if j == len(delimitation):
+            break
+
+    final = []
+
+    for wrd in words:
+        seg_word = []
+        for wrd2 in wrd:
+            x, y, w, h = wrd2
+            n_i = img[y:y + h, x:x + w]#segement d'image
+            seg_word.append(contouringword(n_i))
+        final.append(seg_word)
+    return final
+
+
+def contouringword(image):
+    img = image
+    """mise en niveaux de gris"""
+    newImg = graylevel(img)
+    """seuillage"""
+    newImg = seuillage(newImg)
+
+    kernel = np.ones((11, 7), np.uint8) #matrice de filtre
+    NI = cv2.dilate(cv2.bitwise_not(newImg), kernel)
+    _, contours, _ = cv2.findContours(NI, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    delimitations = []
+
+    for contour in reversed(contours):
+        [x, y, w, h] = cv2.boundingRect(contour)
+        delimitations.append([x, y, w, h])
+    delimitations.sort(key=lambda rect: rect[0])
+
+    final = []
+    for delim in delimitations:
+        x, y, w, h = delim
+        if max(w, h) > 15:
+            n_i = newImg[y:y + h, x:x + w] #segement d'image
+            n_i = reformat(n_i)
+            final.append(n_i)
+    return final
+
+
+def reformat(image):
+    mat = np.asarray(image)
+    p = 3
+    h, w = mat.shape
+    mat2 = np.zeros((mat.shape[0], mat.shape[1], 3))
+    for i in range(mat2.shape[0]):
+        for j in range(mat2.shape[1]):
+            px = mat[i][j]
+            mat2[i][j] = [px, px, px]
+    if w < h:
+        axe = 1
+        cote = np.zeros((h, int((h - w) / 2), p))
+    else:
+        axe = 0
+        cote = np.zeros((int((w - h) / 2), w, p))
+    for i in range(cote.shape[0]):
+        for j in range(cote.shape[1]):
+            cote[i][j] = (255, 255, 255)
+
+    nw_im = np.concatenate((cote, np.concatenate((mat2, cote), axis=axe)), axis=axe)
+    return nw_im
+
+
+if __name__ == '__main__':
+    path = "Source/paragraphe.jpg"
+    viderdossier("LETTERS")
+    img = cv2.imread(path)
+    paragraphe = contouring(img)
+    a = 0
+    for line in paragraphe:
+        for word in line:
+            for letter in word:
+                cv2.imwrite("LETTERS/rect" + str(a) + ".png", letter)
+                a += 1
