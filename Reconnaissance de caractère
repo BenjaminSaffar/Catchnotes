@@ -1,0 +1,157 @@
+import numpy as np
+from scipy import random
+import cv2
+import os
+
+DATA_PATH = 'DATA'
+
+def graylevel(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    return cv2.split(gray)[0]
+
+
+def seuillage(image):
+    _, image = cv2.threshold(image, 210, 255, cv2.THRESH_BINARY)
+    return image
+
+def sigmoid_prime(z):
+    return sigmoid(z) * (1 - sigmoid(z))
+
+
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+
+def chargetuples(repertoire):
+    files = os.listdir(repertoire)  # récupération de tous les noms de fichier du répertoire
+    liste_tuples = []
+    for file in files:  # on parcours ces noms
+        image = cv2.imread(repertoire + "/" + file)  # chargement de l'image correspondant au nom
+        data = cv2.resize(image, (int(28), int(28)))
+        data2 = seuillage(graylevel(data))/255
+
+        """vectorisation"""
+        data2.shape = data2.shape[0] * data2.shape[1]
+        letter = file[6]  # on récupère la valeur de la lettre correspondante dans le nom du fichier
+        liste_tuples.append((data2, letter))
+    return liste_tuples  # on retourne la liste des tuples
+
+
+class Layer:
+    def __init__(self, dim, input_size):
+        self.dim = dim
+        self.input_size = input_size
+        self.weights = np.random.randn(dim, input_size) #poids
+        self.biases = np.random.randn(dim) #biais
+        self.z = np.array([], float) #avant sigmoid
+        self.a = np.array([], float) #après sigmoid
+
+    def output(self, data):
+        self.z = np.dot(self.weights, data) + self.biases
+        return self.z
+
+    def forward(self, data):  # predict
+        self.a = sigmoid(self.output(data))
+        return self.a
+
+    def majweight(self, grad, rate, i, j):
+        self.weights[i][j] -= rate * grad
+
+    def majbiase(self, grad, rate):
+        self.biases -= rate * grad
+
+
+class Network:
+
+    def __init__(self, input_dim):
+        self.layers = []
+        self.input_dim = input_dim
+
+    def propagation(self, input_data): #propagation vers l'avant, retourne la sortie
+        activation = input_data
+        for layer in self.layers:
+            activation = layer.forward(activation)
+        return activation
+
+    def add_layer(self, size):
+        if len(self.layers) > 0:
+            input_dim = self.layers[-1].dim
+        else:
+            input_dim = self.input_dim
+
+        self.layers.append(Layer(size, input_dim))
+
+    def predict(self, input_data): #retourne l'index de l'élément le plus grand
+        result = self.propagation(input_data)
+        return np.argmax(result)
+
+    def train(self, data, exemple, rate):
+
+        deltas = []
+        delta = self.output_delta(data, exemple)
+        deltas.append(delta)
+
+        """calcul du delta de chaque couche"""
+        nb_layers = len(self.layers)
+        for l in reversed(range(nb_layers - 1)):
+            layer = self.layers[l]
+            next_layer = self.layers[l + 1]
+            delta = sigmoid_prime(layer.z) * np.dot(next_layer.weights.transpose(), delta)
+            deltas.append(delta)
+
+        deltas = list(reversed(deltas))
+
+        """rétropropagation"""
+        for layer in self.layers:
+            index = self.layers.index(layer)
+            prc_layer = None
+            if index > 0:
+                prc_layer = self.layers[index - 1]
+            for j in range(layer.dim - 1):
+                for k in range(layer.input_size):
+                    if index == 0:
+                        layer.majweight(data[k] * deltas[index][j], rate, j, k)
+                    else:
+                        layer.majweight(prc_layer.a[k] * deltas[index][j], rate, j, k)
+                layer.majbiase(deltas[index], rate)
+
+    def output_delta(self, data, target):
+        out = self.propagation(data)
+        return out - target
+
+
+if __name__ == '__main__':
+
+    random.seed()
+    train_rate = 0.00001
+
+    net = Network(784)
+    net.add_layer(10)
+    net.add_layer(10)
+    net.add_layer(26)  # à ne pas oublier 26 lettres alphabets
+
+    print('Chargement datas')
+
+    liste_tuples = chargetuples(DATA_PATH)
+    random.shuffle(liste_tuples) #on mélange
+    print('Datas chargées')
+
+    # Parcourt de la liste de tuples pour soumettre à entrainement
+    for tuple in liste_tuples:
+        my_tuple = tuple
+        data3 = my_tuple[0]
+        my_letter = my_tuple[1]
+        exemple = np.zeros(7)
+        exemple[ord(my_letter) - ord('A')] = 1
+        net.train(data3, exemple, train_rate)
+
+    print('image de test')
+    data_test = cv2.imread('Source/datatest.png')
+    data_test = cv2.resize(data_test, (int(28), int(28)))
+    data_test2 = seuillage(graylevel(data_test))/255
+
+    """vectorisation"""
+    data_test2.shape = data_test2.shape[0] * data_test2.shape[1]
+
+    net.propagation(data_test2)
+    resultat = net.predict(data_test2) + ord('A')  # Pour code ASCII
